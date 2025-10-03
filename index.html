@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Totoro Math Game</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4a90e2">
+  <style>
+    body { margin:0; overflow:hidden; background:#87ceeb; font-family:Arial,sans-serif; }
+    #ui { position:absolute; top:10px; left:10px; color:white; font-size:18px; text-shadow:1px 1px 2px black; }
+    button { margin:5px; padding:5px 10px; font-size:16px; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <button id="startBtn">Start</button>
+    <div id="info"></div>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const C = document.getElementById("gameCanvas");
+    const ctx = C.getContext("2d");
+    let W, H;
+    function resize() { W = C.width = window.innerWidth; H = C.height = window.innerHeight; }
+    window.addEventListener("resize", resize); resize();
+
+    function generateProblem() {
+      let a = Math.floor(Math.random() * 90) + 10;
+      let b = Math.floor(Math.random() * 90) + 10;
+      let op = Math.random() < 0.5 ? "+" : "-";
+      if (op === "-" && b > a) [a, b] = [b, a];
+      return { text: a + " " + op + " " + b, answer: op==="+" ? a+b : a-b };
+    }
+
+    class Sprite {
+      constructor(x, y, problem) {
+        this.x = x; this.y = y; this.problem = problem;
+        this.r = 30; this.speed = 1 + Math.random()*0.5;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.fillStyle = "black";
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle="white";
+        ctx.beginPath(); ctx.arc(this.x-10,this.y-5,6,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x+10,this.y-5,6,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle="black";
+        ctx.beginPath(); ctx.arc(this.x-10,this.y-5,2,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x+10,this.y-5,2,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle="white";
+        ctx.font="16px Arial"; ctx.textAlign="center";
+        ctx.fillText(this.problem.text,this.x,this.y+30);
+      }
+      update() { this.y -= this.speed; }
+    }
+
+    class Game {
+      constructor() {
+        this.sprites=[]; this.score=0; this.lives=5;
+        this.running=false; this.spawnInterval=1500; this.lastSpawn=0;
+        this.currentTarget=generateProblem();
+      }
+      start() {
+        this.score=0; this.lives=5; this.sprites=[];
+        this.running=true; this.lastSpawn=0;
+        this.loop(performance.now());
+      }
+      spawn() {
+        this.sprites.push(new Sprite(Math.random()*(W-60)+30,H-80,generateProblem()));
+      }
+      loop(ts) {
+        if(!this.running) return;
+        ctx.fillStyle="#87ceeb"; ctx.fillRect(0,0,W,H);
+        ctx.fillStyle="green"; ctx.fillRect(0,H-40,W,40);
+        ctx.fillStyle="gray";
+        ctx.beginPath(); ctx.arc(W*0.3,H-40,40,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(W*0.7,H-40,40,0,Math.PI*2); ctx.fill();
+        if(ts - this.lastSpawn > this.spawnInterval) { this.spawn(); this.lastSpawn = ts; }
+        this.sprites.forEach(s=>{ s.update(); s.draw(); });
+        this.sprites=this.sprites.filter(s=>s.y+s.r>0);
+        document.getElementById("info").innerText=
+          "Score: "+this.score+" Lives: "+this.lives+" | Target: "+this.currentTarget.answer;
+        requestAnimationFrame(this.loop.bind(this));
+      }
+    }
+
+    const game=new Game();
+    document.getElementById("startBtn").onclick=()=>game.start();
+    C.addEventListener("click", e=>{
+      if(!game.running) return;
+      const rect=C.getBoundingClientRect();
+      const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+      game.sprites.forEach((s,i)=>{
+        const dx=mx-s.x,dy=my-s.y;
+        if(dx*dx+dy*dy<=s.r*s.r){
+          if(s.problem.answer===game.currentTarget.answer){
+            game.score++; game.currentTarget=generateProblem();
+          } else {
+            game.lives--; if(game.lives<=0){ game.running=false; alert("Game Over!"); }
+          }
+          game.sprites.splice(i,1);
+        }
+      });
+    });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(()=>console.log("SW registered"))
+        .catch(err=>console.error("SW failed:",err));
+    }
+  </script>
+</body>
+</html>
